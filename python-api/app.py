@@ -3,7 +3,7 @@ from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST, His
 import random
 import time
 import io
-import picamera  # For the camera
+from picamera2 import Picamera2  # Updated import for picamera2
 # import Adafruit_DHT  # For temperature and humidity sensor
 
 # Sensor setup (assuming DHT22 is connected to GPIO pin 4)
@@ -22,17 +22,16 @@ REQUEST_LATENCY = Histogram('app_request_latency_seconds', 'Latency of HTTP Requ
 
 # Capture Raspberry Pi camera frames and stream them as MJPEG
 def generate_camera_stream():
-    with picamera.PiCamera(resolution='640x480', framerate=24) as camera:
-        camera.start_preview()
-        time.sleep(2)  # Let the camera warm up
-        stream = io.BytesIO()
-        for _ in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-            stream.seek(0)
-            frame = stream.read()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            stream.seek(0)
-            stream.truncate()
+    picam2 = Picamera2()  # Initialize picamera2
+    picam2.configure(picam2.create_preview_configuration())
+    picam2.start()  # Start the camera
+    time.sleep(2)  # Let the camera warm up
+
+    while True:
+        # Capture a frame as a JPEG
+        frame = picam2.capture_buffer()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 # Route for the camera feed
 @app.route('/camera_feed')
